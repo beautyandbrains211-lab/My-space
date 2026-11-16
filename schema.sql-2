@@ -1,0 +1,15 @@
+create table profiles(id uuid primary key references auth.users on delete cascade default auth.uid(), name text default 'София', settings jsonb default '{"hide":[]}');
+create table tasks(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, title text not null, day date, time text, due date, priority int default 0, category text, done boolean default false, repeat text, goal_id uuid, created_at timestamptz default now());
+create table goals(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, title text not null, horizon text default 'year', category text, deadline date, percent int default 0, current numeric, target numeric, notes text, archived boolean default false, parent_id uuid references goals on delete set null, created_at timestamptz default now());
+create table habits(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, title text not null, days int[] default '{1,2,3,4,5,6,7}', start_date date default current_date, archived boolean default false, created_at timestamptz default now());
+create table habit_logs(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, habit_id uuid not null references habits on delete cascade, day date not null, unique(habit_id,day));
+create table transactions(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, kind text not null check(kind in('income','expense')), amount numeric not null, day date default current_date, category text, created_at timestamptz default now());
+create table fin_goals(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, title text not null, target numeric not null, saved numeric default 0, created_at timestamptz default now());
+create table state_entries(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, day date not null, mood int, energy int, sleep int, cycle_day int, note text, unique(user_id,day));
+create table content_items(id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users on delete cascade, title text not null, platform text, day date, status text, link text, created_at timestamptz default now());
+do $$ declare t text; begin
+foreach t in array array['profiles','tasks','goals','habits','habit_logs','transactions','fin_goals','state_entries','content_items'] loop
+execute format('alter table %I enable row level security',t);
+execute format('create policy own on %I for all using (%s=auth.uid()) with check (%s=auth.uid())',t,case when t='profiles' then 'id' else 'user_id' end,case when t='profiles' then 'id' else 'user_id' end);
+if t<>'profiles' then execute format('create index on %I(user_id)',t); end if;
+end loop; end $$;
